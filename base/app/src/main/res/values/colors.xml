@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The colours the window itself is painted in, before Compose draws anything: the status and
+  navigation bars, the splash background and the launcher icon's plate. The screens' colours live
+  in ui/theme/Color.kt (Classic) and ui/look/ImmersiveTheme.kt (Immersive).
+
+  Kuroka's own palette; the structure follows Orpheon (GPL-3.0, © kota-zo).
+-->
+<resources>
+    <!-- The accent: a deep rose, as the word-mark is. -->
+    <color name="kuroka_accent">#FFF1316F</color>
+    <color name="kuroka_accent_dark">#FFB31E50</color>
+
+    <!-- The app behind everything: near-black, and pure black on an OLED screen. -->
+    <color name="app_background">#FF121212</color>
+    <color name="app_background_oled">#FF000000</color>
+    <color name="status_bar">#FF000000</color>
+
+    <color name="dark_gray">#FF121212</color>
+    <color name="medium_gray">#FF535353</color>
+    <color name="light_gray">#FFB3B3B3</color>
+
+    <color name="primary">#FFE0E0E0</color>
+    <color name="on_primary">#FF121212</color>
+    <color name="primary_container">#FF2E2E2E</color>
+    <color name="on_primary_container">#FFF5F5F5</color>
+
+    <!-- The launcher icon: the accent's rose on black. -->
+    <color name="ic_launcher_background">#FF0B0B0D</color>
+</resources>

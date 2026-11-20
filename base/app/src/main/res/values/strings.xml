@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The strings the manifest and the system dialogs need. What the screens say is written in the
+  composables themselves, as Orpheon does (GPL-3.0, © kota-zo): one language, no half-translated
+  resource files, and a string that is only ever read next to the code that shows it.
+-->
+<resources>
+    <string name="app_name">Kuroka</string>
+    <string name="app_label">${appLabel}</string>
+
+    <!-- The player's notification and its controls. -->
+    <string name="playback_channel_name">Playback</string>
+    <string name="playback_channel_description">The episode that is playing</string>
+    <string name="update_channel_name">Updates</string>
+    <string name="update_channel_description">A new version of Kuroka</string>
+
+    <!-- The player, as Android's own media controls and a Chromecast show it. -->
+    <string name="player_description">Anime player</string>
+    <string name="cast_to">Cast to</string>
+
+    <!-- The file provider's authority is built from the application id in code. -->
+    <string name="file_provider_authority">app.kuroka.fileprovider</string>
+</resources>
