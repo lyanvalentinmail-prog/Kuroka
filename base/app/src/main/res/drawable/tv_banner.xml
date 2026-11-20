@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Android TV banner (320 × 180 dp, as the leanback launcher asks): Kuroka's mark and its name
+  on the app's own background. One vector, so the four APKs of a release carry the same file.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+
+    <path
+        android:fillColor="#FF0B0B0D"
+        android:pathData="M0,0 H320 V180 H0 Z" />
+
+    <!-- The mark, at 96 dp, left of the name. -->
+    <group
+        android:scaleX="0.89"
+        android:scaleY="0.89"
+        android:translateX="18"
+        android:translateY="10">
+        <path
+            android:fillColor="#FFF1316F"
+            android:pathData="M31,34 L38.5,20.5 C39.4,18.9 41.6,18.7 42.8,20.1 L52,31 Z" />
+        <path
+            android:fillColor="#FFF1316F"
+            android:pathData="M77,34 L69.5,20.5 C68.6,18.9 66.4,18.7 65.2,20.1 L56,31 Z" />
+        <path
+            android:fillColor="#FFF1316F"
+            android:pathData="M54,28 C68,28 79,38.5 79,52.5 C79,68 68.5,80 54,80 C39.5,80 29,68 29,52.5 C29,38.5 40,28 54,28 Z" />
+        <path
+            android:fillColor="#FF0B0B0D"
+            android:pathData="M47.5,44.5 L64,54 L47.5,63.5 Z" />
+    </group>
+
+    <!-- "KUROKA", drawn as strokes so no font is needed in a vector. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M124,66 h9 v20 l17,-20 h11 l-18,21 l19,27 h-11 l-14,-20 l-4,4 v16 h-9 z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M164,66 h9 v30 c0,10 6,16 14,16 c8,0 14,-6 14,-16 v-30 h9 v31 c0,15 -10,24 -23,24 c-13,0 -23,-9 -23,-24 z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M216,66 h22 c13,0 21,7 21,17 c0,8 -5,13 -12,15 l14,23 h-11 l-13,-22 h-12 v22 h-9 z M225,74 v21 h12 c8,0 13,-4 13,-10 c0,-7 -5,-11 -13,-11 z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M264,66 h31 v8 h-22 v14 h20 v8 h-20 v17 h22 v8 h-31 z" />
+</vector>

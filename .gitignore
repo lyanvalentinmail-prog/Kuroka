@@ -1,0 +1,28 @@
+# build outputs
+build/
+.gradle/
+.kotlin/
+*.apk
+*.aab
+*.zip
+*.log
+dist/
+local.properties
+release-apks/
+
+# the release key and its passwords (base/keystore/README.md says how the CI provides them)
+*.jks
+*.keystore
+base/keystore/keystore.properties
+
+# device captures (logs can contain session data)
+tools/captures/
+base/tools/captures/
+__pycache__/
+.idea/
+*.iml
+.DS_Store
+
+# internal working notes: kept on the machine, never published
+HANDOFF.md
+PROMPT-*.md

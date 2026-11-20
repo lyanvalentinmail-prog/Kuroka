@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the app's own FileProvider hands out: an APK it has just taken down (the update installs
+  through it) and a poster it was asked to share. Nothing else is reachable this way.
+-->
+<paths>
+    <cache-path name="updates" path="updates/" />
+    <files-path name="shared" path="shared/" />
+    <external-files-path name="exports" path="Movies/" />
+</paths>
