@@ -107,6 +107,7 @@ fun BottomBar(
                     selected = route == tab.route,
                     badge = if (tab.route == Routes.DOWNLOADS) active else 0,
                     onClick = { onTab(tab.route) },
+                    modifier = Modifier.weight(1f),
                 )
             }
         }
@@ -118,7 +119,8 @@ fun BottomBar(
  * the downloads. Material's own item would draw the same thing, but this version of Material3 does
  * not offer it by the name its bar and its colours use, so the tab is drawn here — over the same
  * tokens, and the two looks of the app stay two drawings of one bar rather than one borrowed and one
- * hand-made.
+ * hand-made. The bar's row is what gives a tab its share of the width, so the tab takes a
+ * modifier and the bar passes the weight.
  */
 @Composable
 private fun ClassicTab(
@@ -126,12 +128,12 @@ private fun ClassicTab(
     selected: Boolean,
     badge: Int,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val accent = LocalAccent.current
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Column(
-        modifier = Modifier
-            .weight(1f)
+        modifier = modifier
             .clickable(onClick = onClick)
             .padding(vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
