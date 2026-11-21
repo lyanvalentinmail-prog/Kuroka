@@ -177,11 +177,11 @@ object KitsuneJson {
                     subtitles = own,
                     priority = o.int("priority") ?: (if (o.optBoolean("isActive")) 5 else 3),
                 )
-                own.forEach { t -> if (subtitles.none { it.url == t.url }) subtitles += it }
+                own.forEach { t -> if (subtitles.none { it.url == t.url }) subtitles += t }
             }
         }
         answer.optJSONArray("subtitles")?.let { a ->
-            tracks(a, headers).forEach { t -> if (subtitles.none { it.url == t.url }) subtitles += it }
+            tracks(a, headers).forEach { t -> if (subtitles.none { it.url == t.url }) subtitles += t }
         }
         val downloads = ArrayList<DownloadLink>()
         answer.optJSONArray("downloads")?.let { a ->

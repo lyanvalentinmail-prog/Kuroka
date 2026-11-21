@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.kuroka.api.AppSettings
 import app.kuroka.api.Look
-import app.kuroka.ui.theme.Accent
 import app.kuroka.ui.theme.Inter
 import app.kuroka.ui.theme.LocalAccent
 import app.kuroka.ui.theme.LocalLookKind

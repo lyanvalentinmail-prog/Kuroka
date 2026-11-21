@@ -136,8 +136,22 @@ data class EpisodeMeta(
 )
 
 /**
+ * One face of an anime's cast, as the catalog gives it: the name to show, the portrait, and the
+ * part it plays ("Main", "Supporting", "Background").
+ */
+data class Character(
+    val id: Int,
+    val name: String = "",
+    val image: String? = null,
+    val role: String = "",
+) {
+    /** What a cast row shows: the name, or a stand-in when the site gave none. */
+    val label: String get() = name.ifBlank { "Character $id" }
+}
+
+/**
  * One anime, everything a page shows: the poster and the banner, what it is about, how it is
- * doing (score, popularity, airing), and the episode list the catalog itself has.
+ * doing (score, popularity, airing), and the episode list and cast the catalog itself has.
  */
 data class Anime(
     val id: Int,

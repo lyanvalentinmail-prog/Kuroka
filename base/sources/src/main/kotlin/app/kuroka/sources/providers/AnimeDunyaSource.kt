@@ -101,7 +101,13 @@ class AnimeDunyaSource : AnimeSource {
         )
     }
 
-    override suspend fun watch(anime: AnimeRef, audio: Audio, episode: Double): WatchResult? {
+    /**
+     * [episodeId] is the synthetic id this source's own list gave (see
+     * [ProviderSupport.episodeId]), so an episode is found by its number and the audio asked for.
+     */
+    override suspend fun watch(
+        anime: AnimeRef, audio: Audio, episode: Double, episodeId: String?,
+    ): WatchResult? {
         if (audio == Audio.DUB) return null
         val malId = ProviderSupport.malId(anime) ?: return null
         val number = ProviderSupport.numberLabel(episode)
