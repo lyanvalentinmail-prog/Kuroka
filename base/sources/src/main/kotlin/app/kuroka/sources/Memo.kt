@@ -51,6 +51,25 @@ object Memo {
         map[key] = Entry(now, value)
     }
 
+    /** How many answers are being kept. */
+    val count: Int get() = map.size
+
+    /**
+     * What the kept answers roughly take, as a label ("2 MB"). The values are parsed pages, so
+     * their JSON is measured: two bytes a character, which is what a string of them costs.
+     */
+    fun sizeLabel(): String {
+        var bytes = 0L
+        map.values.forEach { entry ->
+            bytes += (entry.value?.toString()?.length ?: 0).toLong() * 2L
+        }
+        return when {
+            bytes >= 1L shl 20 -> String.format("%.1f MB", bytes / 1048576.0)
+            bytes >= 1L shl 10 -> String.format("%.0f KB", bytes / 1024.0)
+            else -> "$bytes B"
+        }
+    }
+
     /** Forgets the answers under [prefix] ("" forgets them all). */
     fun forget(prefix: String = "") {
         if (prefix.isEmpty()) map.clear() else map.keys.filter { it.startsWith(prefix) }.forEach { map.remove(it) }

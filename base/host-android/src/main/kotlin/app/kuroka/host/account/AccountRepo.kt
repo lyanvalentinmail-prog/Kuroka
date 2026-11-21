@@ -131,6 +131,9 @@ class AccountRepo(
         return user
     }
 
+    /** A PKCE pair for a sign-in: the verifier the app keeps, the challenge the site gets. */
+    fun pkce(): Pair<String, String> = api.pkce()
+
     override fun authorizeUrl(state: String, codeChallenge: String): String? =
         api.authorizeUrl(state, codeChallenge)
 

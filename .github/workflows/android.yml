@@ -1,0 +1,275 @@
+# The builds of Kuroka.
+#
+# Three jobs, all from the same checkout of the Gradle project in base/:
+#
+#   build   a debug APK, on every push to main, every pull request and every manual run. This is
+#           the installable one: the artifact is three APKs (arm64, armv7 and universal), signed
+#           with the debug key, and any of them installs with "unknown sources" allowed.
+#   tests   the unit tests of :api, :sources and :host-android, in parallel with the build, so a
+#           failing test does not take the APKs away.
+#   release the signed APKs of a tag (v1.4.0, or v1.4.0-beta.2 for a beta), published as a GitHub
+#           release with their checksums. The key comes from the repository's secrets, so a fork
+#           without them cannot publish one.
+#
+# The version names and codes come from tools/check_tag.py, which is also what stops a tag that
+# would not compare cleanly with the ones before it.
+name: Android
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push of the same branch stops the run that is still going.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  # The Gradle project is in base/, with its own wrapper and version catalog.
+  PROJECT: base
+  JAVA_VERSION: '21'
+
+jobs:
+  build:
+    name: A debug APK
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: The source
+        uses: actions/checkout@v4
+
+      - name: The JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Gradle, with its caches
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: The Android SDK this build asks for
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/android-sdk}}"
+          MANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          echo "The SDK is at $SDK"
+          if [ -x "$MANAGER" ]; then
+            yes | "$MANAGER" --licenses > /dev/null || true
+            "$MANAGER" "platforms;android-37" || true
+          else
+            echo "No sdkmanager here; the Android plugin takes the platform itself."
+          fi
+
+      - name: The debug APKs
+        working-directory: ${{ env.PROJECT }}
+        run: ./gradlew --no-daemon :app:assembleDebug --stacktrace
+
+      - name: What came out of it
+        run: |
+          set -euo pipefail
+          ls -l ${{ env.PROJECT }}/app/build/outputs/apk/debug/
+          mkdir -p apks
+          cp ${{ env.PROJECT }}/app/build/outputs/apk/debug/*.apk apks/
+          cd apks
+          for file in *.apk; do
+            case "$file" in
+              app-arm64-v8a-debug.apk)   mv "$file" Kuroka-debug-ARMv8.apk ;;
+              app-armeabi-v7a-debug.apk) mv "$file" Kuroka-debug-ARMv7.apk ;;
+              app-universal-debug.apk)   mv "$file" Kuroka-debug-universal.apk ;;
+              *) mv "$file" "Kuroka-debug-${file}" ;;
+            esac
+          done
+          sha256sum *.apk | tee checksums.txt
+
+      - name: The APKs, as an artifact of this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kuroka-debug-${{ github.sha }}
+          path: apks/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Which one to install
+        run: |
+          {
+            echo "## Install this build"
+            echo
+            echo "Take the artifact **Kuroka-debug-${{ github.sha }}** of this run, unzip it, and"
+            echo "install one APK on the phone:"
+            echo
+            echo "| APK | For |"
+            echo "| --- | --- |"
+            echo "| \`Kuroka-debug-ARMv8.apk\` | almost every phone since 2017 (arm64) |"
+            echo "| \`Kuroka-debug-ARMv7.apk\` | an older or 32-bit phone |"
+            echo "| \`Kuroka-debug-universal.apk\` | anything, and an Android TV |"
+            echo
+            echo "They are debug builds signed with the debug key, and they install as"
+            echo "\`app.kuroka.dev\` (\"Kuroka dev\") next to a release install. The phone asks to"
+            echo "allow installs from unknown sources the first time."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  tests:
+    name: The tests
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: The source
+        uses: actions/checkout@v4
+
+      - name: The JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Gradle, with its caches
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: The unit tests
+        working-directory: ${{ env.PROJECT }}
+        run: ./gradlew --no-daemon test --stacktrace
+
+  release:
+    name: A signed release
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - name: The source
+        uses: actions/checkout@v4
+
+      - name: What the tag says
+        id: tag
+        run: python3 tools/check_tag.py "${GITHUB_REF_NAME}"
+
+      - name: The release key
+        env:
+          KEYSTORE: ${{ secrets.KUROKA_KEYSTORE }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE" ]; then
+            echo "::error::No KUROKA_KEYSTORE secret: a published release has to be signed with the"
+            echo "key every earlier one was, or Android takes the new APK as another app. Add the"
+            echo "base64 of the keystore as a repository secret (base/keystore/README.md says how)."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          echo "The key is at $RUNNER_TEMP/release.jks ($(stat -c %s "$RUNNER_TEMP/release.jks") bytes)"
+
+      - name: The JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Gradle, with its caches
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: The Android SDK this build asks for
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/android-sdk}}"
+          MANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$MANAGER" ]; then
+            yes | "$MANAGER" --licenses > /dev/null || true
+            "$MANAGER" "platforms;android-37" || true
+          fi
+
+      - name: The signed APKs
+        working-directory: ${{ env.PROJECT }}
+        env:
+          KUROKA_KEYSTORE: ${{ env.KEYSTORE_PATH }}
+          KUROKA_KEYSTORE_PASSWORD: ${{ secrets.KUROKA_KEYSTORE_PASSWORD }}
+          KUROKA_KEY_ALIAS: ${{ secrets.KUROKA_KEY_ALIAS }}
+          KUROKA_KEY_PASSWORD: ${{ secrets.KUROKA_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # The AniList sign-in of a published build: its client id from the secrets, and the
+          # redirect URI from the repository's variables (or the scheme the manifest declares).
+          CLIENT_ID="${{ secrets.ANILIST_CLIENT_ID }}"
+          REDIRECT="${{ vars.ANILIST_REDIRECT_URI }}"
+          ./gradlew --no-daemon :app:assembleRelease :app:collectApks --stacktrace \
+            -PappVersionName="${{ steps.tag.outputs.version }}" \
+            -PappVersionCode="${{ steps.tag.outputs.code }}" \
+            -PupdateRepo="${{ github.repository }}" \
+            -PanilistClientId="$CLIENT_ID" \
+            -PanilistRedirectUri="${REDIRECT:-kuroka://anilist/callback}"
+
+      - name: What came out of it
+        run: |
+          set -euo pipefail
+          mkdir -p apks
+          cp ${{ env.PROJECT }}/app/build/release-apks/*.apk apks/
+          cd apks
+          sha256sum *.apk | tee checksums.txt
+          ls -l
+
+      - name: The notes of this version
+        id: notes
+        run: |
+          set -euo pipefail
+          python3 - "${{ steps.tag.outputs.version }}" > notes.md <<'PY'
+          import re, sys
+
+          version = sys.argv[1]
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          # The section of this version: from its own heading to the next one.
+          pattern = re.compile(
+              r"^##\s+\[?" + re.escape(version) + r"\]?[^\n]*\n(.*?)(?=^##\s|\Z)",
+              re.MULTILINE | re.DOTALL,
+          )
+          found = pattern.search(text)
+          body = found.group(1).strip() if found else ""
+          print(body if body else f"Kuroka {version}.")
+          PY
+
+      - name: The release, with its APKs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "Kuroka ${{ steps.tag.outputs.version }}" \
+            --notes-file notes.md \
+            ${{ steps.tag.outputs.beta == 'true' && '--prerelease' || '' }} \
+            --target "${{ github.sha }}" \
+            apks/*.apk apks/checksums.txt
+
+      - name: The APKs, as an artifact too
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kuroka-${{ steps.tag.outputs.version }}
+          path: apks/*
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: What was published
+        run: |
+          {
+            echo "## Kuroka ${{ steps.tag.outputs.version }}"
+            echo
+            echo "Published on the release page of \`${{ github.repository }}\`, with these APKs:"
+            echo
+            echo '```'
+            cat apks/checksums.txt
+            echo '```'
+            echo
+            echo "An install over an earlier one keeps its data: the key is the same, so Android"
+            echo "takes it as an update. \`Kuroka-${{ steps.tag.outputs.version }}-TV.apk\` is the"
+            echo "universal APK, which is what an Android TV wants."
+          } >> "$GITHUB_STEP_SUMMARY"

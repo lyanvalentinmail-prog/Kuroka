@@ -35,8 +35,11 @@ object Routes {
     const val GENRE = "genre/{name}"
     fun genre(name: String) = "genre/${java.net.URLEncoder.encode(name, "UTF-8")}"
 
-    /** The player: one anime, one episode, one audio; the rest comes from the episode itself. */
-    const val WATCH = "watch/{animeId}/{number}/{audio}"
+    /**
+     * The player: one anime, one episode, one audio; an episode id, a server and a source come as
+     * query arguments, so a row that knows its own id does not have to find it again.
+     */
+    const val WATCH = "watch/{animeId}/{number}/{audio}?episodeId={episodeId}&server={server}&source={source}"
     const val playerPattern = WATCH
 
     /**

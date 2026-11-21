@@ -58,12 +58,20 @@ android {
     // Release key from the CI secrets (env), else keystore/keystore.properties.
     val envStore = System.getenv("KUROKA_KEYSTORE")
     val hasReleaseKey = envStore != null || keystorePropertiesFile.exists()
-    val stableRelease = !beta
-    if (stableRelease && !hasReleaseKey &&
-        gradle.startParameter.taskNames.any { Regex("(assemble|bundle|package|install)Release").containsMatchIn(it) }
-    ) throw GradleException(
-        "A stable release needs the release key: set KUROKA_KEYSTORE (CI) or add keystore/keystore.properties."
-    )
+    // A stable release with no key would be signed by the debug key, and Android would take it as
+    // another app rather than an update: stop the build instead of publishing that. (Asked of the
+    // task graph, which the configuration cache keeps, rather than of Gradle.startParameter.)
+    if (!beta && !hasReleaseKey) {
+        val releaseTask = Regex("(assemble|bundle|package|install)Release")
+        gradle.taskGraph.whenReady {
+            if (allTasks.any { releaseTask.containsMatchIn(it.path) }) {
+                throw GradleException(
+                    "A stable release needs the release key: set KUROKA_KEYSTORE (the CI does) or " +
+                        "add keystore/keystore.properties (base/keystore/README.md)."
+                )
+            }
+        }
+    }
     signingConfigs {
         create("release") {
             if (envStore != null) {
