@@ -91,7 +91,7 @@ fun PlayerSurface(
     doubleTapSeconds: Int = 10,
     ambilight: Boolean = true,
     poster: String? = null,
-    onTap: () -> Unit = Unit,
+    onTap: () -> Unit = {},
     onScrub: ((Long) -> Unit)? = null,
     controlsVisible: Boolean = true,
 ) {

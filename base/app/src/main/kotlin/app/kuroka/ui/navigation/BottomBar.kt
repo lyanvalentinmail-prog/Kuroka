@@ -44,7 +44,7 @@ import app.kuroka.ui.theme.LocalLookKind
 /*
  * The five tabs at the foot of the app: home, search, library, downloads and settings. In the
  * Immersive look the bar is a floating glass pill with the tab you are on tinted by the accent; in
- * the Classic look it is Material's own navigation bar over the page's grey.
+ * the Classic look it is Material's own navigation bar over the page's grey, its tabs drawn here.
  *
  * The downloads tab carries the number of episodes coming down, so a user who left the app knows
  * something is still happening without opening the page.
@@ -102,48 +102,70 @@ fun BottomBar(
             modifier = Modifier.navigationBarsPadding(),
         ) {
             tabs.forEach { tab ->
-                val selected = route == tab.route
-                androidx.compose.material3.NavigationBarItem(
-                    selected = selected,
+                ClassicTab(
+                    tab = tab,
+                    selected = route == tab.route,
+                    badge = if (tab.route == Routes.DOWNLOADS) active else 0,
                     onClick = { onTab(tab.route) },
-                    icon = {
-                        Box {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = tab.label,
-                                tint = if (selected) LocalAccent.current else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(23.dp),
-                            )
-                            if (tab.route == Routes.DOWNLOADS && active > 0) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .size(7.dp)
-                                        .clip(RoundedCornerShape(50))
-                                        .background(LocalAccent.current)
-                                )
-                            }
-                        }
-                    },
-                    label = {
-                        Text(
-                            text = tab.label,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) LocalAccent.current else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    alwaysShowLabel = true,
-                    colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
-                        indicatorColor = LocalAccent.current.copy(alpha = 0.14f),
-                        selectedIconColor = LocalAccent.current,
-                        selectedTextColor = LocalAccent.current,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
                 )
             }
         }
+    }
+}
+
+/**
+ * One tab of the Classic bar: its icon on the pill of the one you are on, its word, and the dot of
+ * the downloads. Material's own item would draw the same thing, but this version of Material3 does
+ * not offer it by the name its bar and its colours use, so the tab is drawn here — over the same
+ * tokens, and the two looks of the app stay two drawings of one bar rather than one borrowed and one
+ * hand-made.
+ */
+@Composable
+private fun ClassicTab(
+    tab: Tab,
+    selected: Boolean,
+    badge: Int,
+    onClick: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clickable(onClick = onClick)
+            .padding(vertical = 7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(if (selected) accent.copy(alpha = 0.14f) else Color.Transparent)
+                .padding(horizontal = 18.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = tab.icon,
+                contentDescription = tab.label,
+                tint = if (selected) accent else muted,
+                modifier = Modifier.size(23.dp),
+            )
+            if (badge > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(7.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(accent)
+                )
+            }
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = tab.label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) accent else muted,
+        )
     }
 }
 

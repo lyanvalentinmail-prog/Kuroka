@@ -325,13 +325,14 @@ fun SkipButtons(
     showButton: Boolean,
     onSkipIntro: () -> Unit,
     onSkipOutro: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     if (!showButton || (!inIntro && !inOutro)) return
     AnimatedVisibility(
         visible = true,
         enter = fadeIn() + slideInVertically { it / 2 },
         exit = fadeOut() + slideOutVertically { it / 2 },
-        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 96.dp),
+        modifier = modifier.padding(end = 16.dp, bottom = 96.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (inIntro) SkipPill(text = "Skip the opening", onClick = onSkipIntro)
@@ -456,7 +457,7 @@ fun SubtitleSheet(
                         label = track.label.ifBlank { track.language?.uppercase() ?: "In the stream" },
                         on = snapshot.selectedText?.groupIndex == track.groupIndex &&
                             snapshot.selectedText?.trackIndex == track.trackIndex,
-                        onClick = { onSelect(SubtitleTrack(url = "", label = track.label, language = track.language)) },
+                        onClick = { onSelect(SubtitleTrack(url = "", label = track.label, language = track.language.orEmpty())) },
                     )
                 }
             SettingGroup("How far off the picture they are")
@@ -633,13 +634,14 @@ fun NextUpCard(
     seconds: Int,
     onNext: () -> Unit,
     onStop: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val accent = LocalAccent.current
     AnimatedVisibility(
         visible = true,
         enter = fadeIn() + slideInVertically { it },
         exit = fadeOut(),
-        modifier = Modifier.align(Alignment.BottomCenter).padding(20.dp),
+        modifier = modifier.padding(20.dp),
     ) {
         Column(
             modifier = Modifier
