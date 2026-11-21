@@ -9,6 +9,7 @@ import app.kuroka.host.cast.CastController
 import app.kuroka.host.downloads.DownloadRepo
 import app.kuroka.host.library.LibraryStore
 import app.kuroka.host.prefs.Prefs
+import app.kuroka.sources.anilist.AniListCatalog
 import app.kuroka.update.UpdateChecker
 import kotlinx.coroutines.CoroutineScope
 
@@ -39,6 +40,12 @@ object Graph {
     val catalog: Catalog get() = KurokaHost.catalog
     val resolver: EpisodeResolver get() = KurokaHost.resolver
     val cast: CastController get() = KurokaHost.cast
+
+    /**
+     * The catalog as AniList's own type: the home page's rows ([AniListCatalog.home]) and a row by
+     * its id are not part of the [Catalog] contract, and only the home page needs them.
+     */
+    val anilist: AniListCatalog get() = KurokaHost.catalog
 
     /** The update check against the app's own GitHub releases. */
     val updates: UpdateChecker by lazy { UpdateChecker(context, scope) }

@@ -20,6 +20,8 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import app.kuroka.api.AppSettings
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import app.kuroka.di.Graph
 import app.kuroka.host.KurokaHost
 import app.kuroka.host.playback.PlayerHost
@@ -126,12 +128,17 @@ class MainActivity : ComponentActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         // The player screen reads this to drop its chrome: no bars, no sheets, just the picture.
-        PipMode.inPip = isInPictureInPictureMode
+        PipMode.set(isInPictureInPictureMode)
     }
 }
 
-/** Whether the activity is a picture-in-picture window right now (the player reads it). */
+/** Whether the activity is a picture-in-picture window right now (the player and the scaffold read it). */
 object PipMode {
-    @Volatile
-    var inPip: Boolean = false
+    private val _inPip = MutableStateFlow(false)
+    /** Collected by the player screen, which drops its chrome, and by the scaffold. */
+    val inPip: StateFlow<Boolean> get() = _inPip
+
+    fun set(value: Boolean) {
+        _inPip.value = value
+    }
 }

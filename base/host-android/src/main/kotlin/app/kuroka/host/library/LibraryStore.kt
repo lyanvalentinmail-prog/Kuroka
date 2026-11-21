@@ -356,18 +356,19 @@ class LibraryStore(private val db: KurokaDb) {
 }
 
 /** What the recap page shows of your watching. */
+/** What the library counts, for the numbers at the top of its page. */
 data class Stats(
-    val anime: Int,
-    val completed: Int,
-    val watching: Int,
-    val planned: Int,
-    val dropped: Int,
-    val favourites: Int,
-    val episodes: Int,
-    val minutes: Long,
-    val rated: Int,
-    val averageStars: Double,
-    val topGenres: List<Pair<String, Int>>,
+    val anime: Int = 0,
+    val completed: Int = 0,
+    val watching: Int = 0,
+    val planned: Int = 0,
+    val dropped: Int = 0,
+    val favourites: Int = 0,
+    val episodes: Int = 0,
+    val minutes: Long = 0L,
+    val rated: Int = 0,
+    val averageStars: Double = 0.0,
+    val topGenres: List<Pair<String, Int>> = emptyList(),
 ) {
     val hours: Long get() = minutes / 60
     val days: Double get() = minutes / 60.0 / 24.0
