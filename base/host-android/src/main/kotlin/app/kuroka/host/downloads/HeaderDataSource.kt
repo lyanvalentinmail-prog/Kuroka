@@ -82,7 +82,7 @@ class HeaderDataSource(private val client: OkHttpClient) : BaseDataSource(/* isN
         opened = true
         transferStarted(dataSpec)
         // What open answers is how many bytes will come: the range's own, or no promise at all.
-        return if (remaining >= 0) remaining else C.LENGTH_UNSET
+        return if (remaining >= 0) remaining else C.LENGTH_UNSET.toLong()
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {

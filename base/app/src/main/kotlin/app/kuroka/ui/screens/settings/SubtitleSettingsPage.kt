@@ -158,12 +158,15 @@ fun SubtitleSettingsPage(
 
         SettingGroup("When they come")
         SliderRow(
-            title = "How far off the picture",
-            value = style.offsetSeconds.toFloat(),
-            range = -10f..10f,
-            valueLabel = "${String.format("%.1f", style.offsetSeconds)} s",
+            title = "How far after the picture",
+            value = style.offsetSeconds.toFloat().coerceAtLeast(0f),
+            range = 0f..10f,
+            valueLabel = "${String.format("%.1f", style.offsetSeconds.coerceAtLeast(0.0))} s",
             onValue = { model.setSubtitleOffset(it.toDouble()) },
-            subtitle = "Negative is sooner than the picture, positive is later. Kept for every episode.",
+            // The words are held back this long. They cannot be pulled sooner: a stream hands its
+            // lines over at their own time, and one the player has not read yet is not there to show.
+            subtitle = "Holds the words back, up to ten seconds. A stream gives its lines when it " +
+                "gives them, so they cannot be asked for sooner. Kept for every episode.",
         )
 
         SettingGroup("Which track")

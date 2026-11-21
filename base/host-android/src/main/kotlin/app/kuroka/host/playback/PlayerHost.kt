@@ -7,13 +7,14 @@ import android.net.Uri
 import android.view.SurfaceView
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.Cue
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.text.Cue
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -24,8 +25,10 @@ import app.kuroka.api.SubtitleTrack
 import app.kuroka.host.downloads.Downloads
 import app.kuroka.host.downloads.StreamHeaders
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -153,6 +156,9 @@ object PlayerHost {
     @Volatile
     var useEmbeddedStyles: Boolean = true
 
+    /** The words waiting for their offset, so a newer group takes an older one's place. */
+    private var pendingCues: Job? = null
+
     private val _snapshot = MutableStateFlow(PlayerSnapshot())
     /** What the player is doing. Collected by the player screen, the mini player and the service. */
     val snapshot: StateFlow<PlayerSnapshot> get() = _snapshot
@@ -252,29 +258,24 @@ object PlayerHost {
             }
         }
 
-        override fun onCues(cues: List<Cue>) {
-            val out = ArrayList<CueLine>(cues.size)
-            for (i in 0 until cues.size) {
-                val cue = cues.get(i)
+        // Media3 hands over the cues that are on the screen now, as a group stamped with the time
+        // it is due: a cue of its own carries no start and no end any more.
+        override fun onCues(cueGroup: CueGroup) {
+            val due = (cueGroup.presentationTimeUs.takeIf { it != C.TIME_UNSET } ?: 0L) / 1000
+            val out = ArrayList<CueLine>(cueGroup.cues.size)
+            for (cue in cueGroup.cues) {
                 val text = cue.text?.toString()?.trim().orEmpty()
                 if (text.isEmpty()) continue
-                val start = cue.startTimeUs.takeIf { it != C.TIME_UNSET }?.let { it / 1000 } ?: -1L
-                val end = cue.endTimeUs.takeIf { it != C.TIME_UNSET }?.let { it / 1000 } ?: -1L
-                // The offset the settings ask for: + moves the words later.
-                val shiftedStart = if (start >= 0) start - subtitleOffsetMs else start
-                val shiftedEnd = if (end >= 0) end - subtitleOffsetMs else end
-                val now = built?.currentPosition ?: 0L
-                if (shiftedStart >= 0 && now < shiftedStart) continue
-                if (shiftedEnd >= 0 && now > shiftedEnd) continue
                 out += CueLine(
                     text = text,
-                    startMs = shiftedStart,
-                    endMs = shiftedEnd,
+                    startMs = due + subtitleOffsetMs,
+                    // The group stays until the next one says otherwise, so it has no end of its own.
+                    endMs = -1L,
                     textSizePercent = if (useEmbeddedStyles) cue.textSize.takeIf { it > 0 }?.let { it * 100f } else null,
                     windowColor = if (useEmbeddedStyles && cue.windowColorSet) cue.windowColor else null,
                 )
             }
-            _snapshot.value = _snapshot.value.copy(cues = out)
+            publish(out)
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -325,6 +326,24 @@ object PlayerHost {
             val why = failure.message ?: "The episode would not start"
             _snapshot.value = _snapshot.value.copy(error = why)
             onError?.invoke(why)
+        }
+    }
+
+    /**
+     * Puts the words on the screen when the offset says they are due. A group is handed over at its
+     * own time, so an offset holds it back for as long as it asks; it cannot pull a line the player
+     * has not read yet, and a group that is already late goes out as it comes.
+     */
+    private fun publish(lines: List<CueLine>) {
+        val wait = subtitleOffsetMs
+        pendingCues?.cancel()
+        if (wait <= 0L) {
+            _snapshot.value = _snapshot.value.copy(cues = lines)
+            return
+        }
+        pendingCues = scope.launch {
+            delay(wait)
+            _snapshot.value = _snapshot.value.copy(cues = lines)
         }
     }
 
