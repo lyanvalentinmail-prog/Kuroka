@@ -8,7 +8,6 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.cache.Cache
-import androidx.media3.datasource.cache.CacheDataSink
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
@@ -35,6 +34,12 @@ object Downloads {
     const val CHANNEL_ID = "kuroka.downloads"
     const val FOREGROUND_SERVICE_ID = 4201
     const val JOB_ID = 4202
+
+    /**
+     * A download the user paused carries this stop reason. Media3 has only one of its own
+     * ([androidx.media3.exoplayer.offline.Download.STOP_REASON_NONE]); anything else is the app's.
+     */
+    const val STOP_REASON_PAUSED = 1
 
     private var cache: SimpleCache? = null
     private var databaseProvider: DatabaseProvider? = null
@@ -74,33 +79,24 @@ object Downloads {
         .setCacheReadDataSourceFactory(FileDataSource.Factory())
         .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-    /** What a download writes with: the network, into the cache. */
-    private fun downloadSink(context: Context) = CacheDataSink.Factory().setCache(cache(context))
-
     /** The download manager of the app: one for the whole process, as Media3 asks for. */
     @Synchronized
     fun downloadManager(context: Context): DownloadManager {
         manager?.let { return it }
         val app = context.applicationContext
+        // The manager wants the cache itself and the network behind it: from those two it builds
+        // the source a download is read through and the sink it is written into.
         val created = DownloadManager(
             app,
             databaseProvider(app),
-            downloadFactory(app),
-            FileDataSource.Factory(),
+            cache(app),
+            network(),
             executor,
         )
         created.maxParallelDownloads = 2
         manager = created
         return created
     }
-
-    /** The network-and-cache factory a download is written through. */
-    private fun downloadFactory(context: Context): DataSource.Factory = CacheDataSource.Factory()
-        .setCache(cache(context))
-        .setUpstreamDataSourceFactory(network())
-        .setCacheWriteDataSinkFactory(downloadSink(context))
-        .setCacheReadDataSourceFactory(FileDataSource.Factory())
-        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
     @Synchronized
     fun notificationHelper(context: Context): DownloadNotificationHelper =

@@ -34,7 +34,7 @@ class HeaderDataSource(private val client: OkHttpClient) : BaseDataSource(/* isN
     private var remaining = -1L
     private var opened = false
 
-    override fun open(dataSpec: DataSpec): Uri? {
+    override fun open(dataSpec: DataSpec): Long {
         uri = dataSpec.uri
         transferInitializing(dataSpec)
         val url = dataSpec.uri.toString()
@@ -80,8 +80,9 @@ class HeaderDataSource(private val client: OkHttpClient) : BaseDataSource(/* isN
             else -> -1L
         }
         opened = true
-        transferStarted()
-        return dataSpec.uri
+        transferStarted(dataSpec)
+        // What open answers is how many bytes will come: the range's own, or no promise at all.
+        return if (remaining >= 0) remaining else C.LENGTH_UNSET
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {

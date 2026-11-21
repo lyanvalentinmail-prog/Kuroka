@@ -33,6 +33,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.io.File
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 /*
  * The downloads, as the screens see them: ask for an episode, and it is taken down (the variant
@@ -80,7 +84,8 @@ class DownloadRepo(
         // Media3 knows the bytes better than the rows do: the active ones are read from it.
         val manager = runCatching { Downloads.downloadManager(context) }.getOrNull()
         val merged = if (manager == null) all else all.map { item ->
-            val download = runCatching { manager.getDownload(item.id) }.getOrNull() ?: return@map item
+            val download = runCatching { manager.downloadIndex.getDownload(item.id) }.getOrNull()
+                ?: return@map item
             item.copy(
                 state = stateOf(download.state),
                 bytesDone = download.bytesDownloaded,
@@ -121,23 +126,28 @@ class DownloadRepo(
         else -> DownloadState.QUEUED
     }
 
-    private fun failureOf(download: Download, exception: Exception?): String? = when (download.failureReason) {
-        Download.FAILURE_REASON_NONE -> null
-        Download.FAILURE_REASON_UNKNOWN_CONTENT_TYPE -> "The server did not say what it serves"
-        Download.FAILURE_REASON_FILE_NOT_FOUND -> "The stream is gone from the server"
-        Download.FAILURE_REASON_NO_ACTIONABLE_VARIANTS -> "No variant of the quality asked for"
-        Download.FAILURE_REASON_DATA_MANIFEST_NOT_FOUND -> "The playlist is gone"
-        Download.FAILURE_REASON_BAD_MANIFEST -> "The playlist cannot be read"
-        Download.FAILURE_REASON_STARTED_NOT_LOADED -> "Nothing came down"
-        Download.FAILURE_REASON_IO_FILE -> "The phone could not write it"
-        Download.FAILURE_REASON_IO_NETWORK -> "The network went"
-        Download.FAILURE_REASON_IO_BAD_HTTP_STATUS -> "The server refused"
-        Download.FAILURE_REASON_IO_INVALID_HTTP_CONTENT_TYPE -> "The server served something else"
-        Download.FAILURE_REASON_IO_READ_POSITION_OUT_OF_RANGE -> "The stream ended early"
-        Download.FAILURE_REASON_IO_CLEARTEXT_NOT_PERMITTED -> "The stream is http://, which Android refuses"
-        Download.FAILURE_REASON_DECODER_INIT_FAILED -> "The phone cannot decode it"
-        Download.FAILURE_REASON_DECODER_QUERY_FAILED -> "The phone cannot read its tracks"
-        else -> exception?.message ?: "The download stopped"
+    /**
+     * What a failed download says, in words. Media3 keeps two reasons of its own (none, unknown)
+     * and hands everything else over as the exception that stopped it, so the wording is read from
+     * that instead of from a code.
+     */
+    private fun failureOf(download: Download, exception: Exception?): String? {
+        if (download.failureReason == Download.FAILURE_REASON_NONE) return null
+        val why = exception?.message.orEmpty()
+        val lower = why.lowercase()
+        return when {
+            exception == null -> "The download stopped"
+            exception is FileNotFoundException -> "The stream is gone from the server"
+            "cleartext" in lower -> "The stream is http://, which Android refuses"
+            "404" in lower || "not found" in lower -> "The stream is gone from the server"
+            "401" in lower || "403" in lower -> "The server refused"
+            "content type" in lower || "content-type" in lower -> "The server served something else"
+            "out of range" in lower -> "The stream ended early"
+            exception is UnknownHostException || exception is SocketTimeoutException -> "The network went"
+            exception is IOException -> "The network went"
+            "decoder" in lower -> "The phone cannot decode it"
+            else -> why.ifBlank { "The download stopped" }
+        }
     }
 
     /** What the app calls a download: one anime, one episode, one audio. */
@@ -297,7 +307,11 @@ class DownloadRepo(
     }
 
     fun pause(id: String) {
-        runCatching { DownloadService.sendPauseDownload(context, KurokaDownloadService::class.java, id, false) }
+        runCatching {
+            DownloadService.sendSetStopReason(
+                context, KurokaDownloadService::class.java, id, Downloads.STOP_REASON_PAUSED, false,
+            )
+        }
         store.updateProgress(id, DownloadState.PAUSED, store.of(id)?.bytesDone ?: 0L, 0L, null)
         reload()
     }
@@ -307,7 +321,11 @@ class DownloadRepo(
             StreamHeaders.rememberCurrent(item.uri, item.headers)
             item.subtitles.forEach { t -> StreamHeaders.remember(t.url, item.headers) }
         }
-        runCatching { DownloadService.sendResumeDownload(context, KurokaDownloadService::class.java, id, false) }
+        runCatching {
+            DownloadService.sendSetStopReason(
+                context, KurokaDownloadService::class.java, id, Download.STOP_REASON_NONE, false,
+            )
+        }
         store.updateProgress(id, DownloadState.QUEUED, store.of(id)?.bytesDone ?: 0L, 0L, null)
         reload()
     }
@@ -320,7 +338,7 @@ class DownloadRepo(
     }
 
     fun pauseAll() {
-        runCatching { DownloadService.sendPauseAllDownloads(context, KurokaDownloadService::class.java, false) }
+        runCatching { DownloadService.sendPauseDownloads(context, KurokaDownloadService::class.java, false) }
         _items.value.filter { it.state.isActive }.forEach {
             store.updateProgress(it.id, DownloadState.PAUSED, it.bytesDone, it.bytesTotal, null)
         }
@@ -329,7 +347,7 @@ class DownloadRepo(
 
     fun resumeAll() {
         _items.value.filter { it.state == DownloadState.PAUSED }.forEach { resume(it.id) }
-        runCatching { DownloadService.sendResumeAllDownloads(context, KurokaDownloadService::class.java, false) }
+        runCatching { DownloadService.sendResumeDownloads(context, KurokaDownloadService::class.java, false) }
         reload()
     }
 

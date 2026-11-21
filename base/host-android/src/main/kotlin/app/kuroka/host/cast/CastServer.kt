@@ -267,7 +267,7 @@ class CastServer(private val client: OkHttpClient) {
      * 206 of the right size is written, which is what a seeking video player expects.
      */
     private fun serveBytes(route: Route, headOnly: Boolean, requestHeaders: Map<String, String>, output: OutputStream) {
-        val range = CastHttp.parse(requestHeaders["range"])
+        val range = CastHttp.ByteRange.parse(requestHeaders["range"])
         val builder = Request.Builder().url(route.url)
         route.headers.forEach { (k, v) -> builder.header(k, v) }
         builder.header("Connection", "close")

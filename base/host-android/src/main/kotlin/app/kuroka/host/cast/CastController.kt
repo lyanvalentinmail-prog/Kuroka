@@ -1,5 +1,6 @@
 package app.kuroka.host.cast
 
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -159,7 +160,7 @@ class CastController(private val scope: CoroutineScope, client: OkHttpClient = O
         safeSend(CastProtocol.RECEIVER, CastProtocol.NS_RECEIVER, CastProtocol.launch(nextId()))
         safeSend(CastProtocol.RECEIVER, CastProtocol.NS_RECEIVER, CastProtocol.getStatus(nextId()))
         var waited = 0
-        while (isActive && sessionId == null && waited < 20_000) {
+        while (coroutineContext.isActive && sessionId == null && waited < 20_000) {
             delay(400)
             waited += 400
             safeSend(CastProtocol.RECEIVER, CastProtocol.NS_RECEIVER, CastProtocol.getStatus(nextId()))

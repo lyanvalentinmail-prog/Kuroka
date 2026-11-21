@@ -7,7 +7,7 @@ import android.net.Uri
 import android.view.SurfaceView
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.CueList
+import androidx.media3.common.Cue
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
@@ -187,7 +187,10 @@ object PlayerHost {
             )
         }
         trackSelector = selector
-        val created = ExoPlayer.Builder(app, DefaultMediaSourceFactory(Downloads.playback(app)), selector)
+        // The builder's second argument is a source factory and its third a renderers factory: a
+        // track selector is a setter of its own.
+        val created = ExoPlayer.Builder(app, DefaultMediaSourceFactory(Downloads.playback(app)))
+            .setTrackSelector(selector)
             .setLoadControl(
                 DefaultLoadControl.Builder()
                     .setBufferDurationsMs(15_000, 120_000, 1_500, 4_000)
@@ -249,7 +252,7 @@ object PlayerHost {
             }
         }
 
-        override fun onCues(cues: CueList) {
+        override fun onCues(cues: List<Cue>) {
             val out = ArrayList<CueLine>(cues.size)
             for (i in 0 until cues.size) {
                 val cue = cues.get(i)
@@ -267,8 +270,8 @@ object PlayerHost {
                     text = text,
                     startMs = shiftedStart,
                     endMs = shiftedEnd,
-                    textSizePercent = if (useEmbeddedStyles) cue.textSize?.takeIf { it > 0 }?.let { it * 100f } else null,
-                    windowColor = if (useEmbeddedStyles) cue.windowColor?.takeIf { it != 0 } else null,
+                    textSizePercent = if (useEmbeddedStyles) cue.textSize.takeIf { it > 0 }?.let { it * 100f } else null,
+                    windowColor = if (useEmbeddedStyles && cue.windowColorSet) cue.windowColor else null,
                 )
             }
             _snapshot.value = _snapshot.value.copy(cues = out)
@@ -326,15 +329,15 @@ object PlayerHost {
     }
 
     private fun mimeOf(track: SubtitleTrack): String = when (track.format) {
-        SubtitleFormat.VTT -> "text/vtt"
-        SubtitleFormat.SRT -> "application/x-subrip"
-        SubtitleFormat.ASS -> "text/x-ssa"
-        SubtitleFormat.TTML -> "application/ttml+xml"
-        else -> when {
-            track.url.contains(".srt", true) -> "application/x-subrip"
-            track.url.contains(".ass", true) || track.url.contains(".ssa", true) -> "text/x-ssa"
-            else -> "text/vtt"
+        // A format the provider did not name is guessed from the file name; the rest carry one.
+        SubtitleFormat.UNKNOWN -> when {
+            track.url.contains(".srt", true) -> SubtitleFormat.SRT.mime
+            track.url.contains(".ass", true) || track.url.contains(".ssa", true) -> SubtitleFormat.ASS.mime
+            track.url.contains(".ttml", true) || track.url.contains(".xml", true) -> "application/ttml+xml"
+            else -> SubtitleFormat.VTT.mime
         }
+
+        else -> track.format.mime
     }
 
     /** The picture the screen draws on. */
@@ -489,7 +492,7 @@ object PlayerHost {
             speed = p.playbackParameters.speed,
             videoWidth = size?.width ?: 0,
             videoHeight = size?.height ?: 0,
-            videoRotation = runCatching { p.videoSize.rotationDegrees }.getOrDefault(0),
+            videoRotation = runCatching { p.videoSize.unappliedRotationDegrees }.getOrDefault(0),
             mediaId = p.currentMediaItem?.mediaId ?: _snapshot.value.mediaId,
             title = metadata?.title?.toString() ?: _snapshot.value.title,
             episode = metadata?.artist?.toString() ?: _snapshot.value.episode,

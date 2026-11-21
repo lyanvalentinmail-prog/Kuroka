@@ -22,7 +22,8 @@ class KurokaPlaybackService : MediaSessionService() {
         super.onCreate()
         val player = PlayerHost.player(this)
         session = MediaSession.Builder(this, player)
-            .setSessionActivity(pendingIntent())
+            // A session activity is not optional: it is set only when the launcher gave one.
+            .apply { pendingIntent()?.let { setSessionActivity(it) } }
             .build()
     }
 
