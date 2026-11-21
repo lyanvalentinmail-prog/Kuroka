@@ -71,7 +71,32 @@ jobs:
 
       - name: The debug APKs
         working-directory: ${{ env.PROJECT }}
-        run: ./gradlew --no-daemon :app:assembleDebug --stacktrace
+        run: |
+          set -uo pipefail
+          ./gradlew --no-daemon :app:assembleDebug --stacktrace 2>&1 | tee "$RUNNER_TEMP/build.log"
+          exit "${PIPESTATUS[0]}"
+
+      # The Gradle output is long and a runner's console is not where anyone reads it: the errors
+      # and the tail of the log go in the job summary, which the run's page shows.
+      - name: What went wrong
+        if: failure()
+        run: |
+          LOG="$RUNNER_TEMP/build.log"
+          {
+            echo "## The build did not finish"
+            echo
+            echo "The compiler's own errors:"
+            echo
+            echo '```'
+            grep -E "^e: " "$LOG" | head -80 || echo "(none: the failure is below)"
+            echo '```'
+            echo
+            echo "The tail of the log:"
+            echo
+            echo '```'
+            tail -120 "$LOG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: What came out of it
         run: |
@@ -139,7 +164,26 @@ jobs:
 
       - name: The unit tests
         working-directory: ${{ env.PROJECT }}
-        run: ./gradlew --no-daemon test --stacktrace
+        run: |
+          set -uo pipefail
+          ./gradlew --no-daemon test --stacktrace 2>&1 | tee "$RUNNER_TEMP/build.log"
+          exit "${PIPESTATUS[0]}"
+
+      - name: What went wrong
+        if: failure()
+        run: |
+          LOG="$RUNNER_TEMP/build.log"
+          {
+            echo "## The tests did not finish"
+            echo
+            echo '```'
+            grep -E "^e: " "$LOG" | head -80 || echo "(none: the failure is below)"
+            echo '```'
+            echo
+            echo '```'
+            tail -120 "$LOG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   release:
     name: A signed release
@@ -198,7 +242,7 @@ jobs:
           KUROKA_KEY_ALIAS: ${{ secrets.KUROKA_KEY_ALIAS }}
           KUROKA_KEY_PASSWORD: ${{ secrets.KUROKA_KEY_PASSWORD }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           # The AniList sign-in of a published build: its client id from the secrets, and the
           # redirect URI from the repository's variables (or the scheme the manifest declares).
           CLIENT_ID="${{ secrets.ANILIST_CLIENT_ID }}"
@@ -208,7 +252,26 @@ jobs:
             -PappVersionCode="${{ steps.tag.outputs.code }}" \
             -PupdateRepo="${{ github.repository }}" \
             -PanilistClientId="$CLIENT_ID" \
-            -PanilistRedirectUri="${REDIRECT:-kuroka://anilist/callback}"
+            -PanilistRedirectUri="${REDIRECT:-kuroka://anilist/callback}" \
+            2>&1 | tee "$RUNNER_TEMP/build.log"
+          exit "${PIPESTATUS[0]}"
+
+      - name: What went wrong
+        if: failure()
+        run: |
+          LOG="$RUNNER_TEMP/build.log"
+          [ -f "$LOG" ] || { echo "No build log." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          {
+            echo "## The release build did not finish"
+            echo
+            echo '```'
+            grep -E "^e: " "$LOG" | head -80 || echo "(none: the failure is below)"
+            echo '```'
+            echo
+            echo '```'
+            tail -120 "$LOG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: What came out of it
         run: |
