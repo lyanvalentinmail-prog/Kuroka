@@ -41,6 +41,9 @@ jobs:
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: The source
         uses: actions/checkout@v4
@@ -80,23 +83,31 @@ jobs:
       # and the tail of the log go in the job summary, which the run's page shows.
       - name: What went wrong
         if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LOG="$RUNNER_TEMP/build.log"
           {
-            echo "## The build did not finish"
+            echo "### The debug build did not finish"
             echo
             echo "The compiler's own errors:"
             echo
             echo '```'
-            grep -E "^e: " "$LOG" | head -80 || echo "(none: the failure is below)"
+            grep -E "^e: " "$LOG" 2>/dev/null | head -60 || true
             echo '```'
             echo
             echo "The tail of the log:"
             echo
             echo '```'
-            tail -120 "$LOG"
+            tail -90 "$LOG" 2>/dev/null || echo "(there is no build log: the step before Gradle failed)"
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          # A job summary is only on the run's page; a pull request's comment is where a failure is
+          # actually read (and the only place an API client can reach it).
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file report.md || true
+          fi
 
       - name: What came out of it
         run: |
@@ -147,6 +158,9 @@ jobs:
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: The source
         uses: actions/checkout@v4
@@ -171,19 +185,31 @@ jobs:
 
       - name: What went wrong
         if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LOG="$RUNNER_TEMP/build.log"
           {
-            echo "## The tests did not finish"
+            echo "### The tests did not finish"
+            echo
+            echo "The compiler's own errors:"
             echo
             echo '```'
-            grep -E "^e: " "$LOG" | head -80 || echo "(none: the failure is below)"
+            grep -E "^e: " "$LOG" 2>/dev/null | head -60 || true
             echo '```'
             echo
+            echo "The tail of the log:"
+            echo
             echo '```'
-            tail -120 "$LOG"
+            tail -90 "$LOG" 2>/dev/null || echo "(there is no build log: the step before Gradle failed)"
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          # A job summary is only on the run's page; a pull request's comment is where a failure is
+          # actually read (and the only place an API client can reach it).
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file report.md || true
+          fi
 
   release:
     name: A signed release
@@ -192,6 +218,7 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - name: The source
         uses: actions/checkout@v4
@@ -258,20 +285,31 @@ jobs:
 
       - name: What went wrong
         if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LOG="$RUNNER_TEMP/build.log"
-          [ -f "$LOG" ] || { echo "No build log." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
           {
-            echo "## The release build did not finish"
+            echo "### The release build did not finish"
+            echo
+            echo "The compiler's own errors:"
             echo
             echo '```'
-            grep -E "^e: " "$LOG" | head -80 || echo "(none: the failure is below)"
+            grep -E "^e: " "$LOG" 2>/dev/null | head -60 || true
             echo '```'
             echo
+            echo "The tail of the log:"
+            echo
             echo '```'
-            tail -120 "$LOG"
+            tail -90 "$LOG" 2>/dev/null || echo "(there is no build log: the step before Gradle failed)"
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          # A job summary is only on the run's page; a pull request's comment is where a failure is
+          # actually read (and the only place an API client can reach it).
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file report.md || true
+          fi
 
       - name: What came out of it
         run: |
