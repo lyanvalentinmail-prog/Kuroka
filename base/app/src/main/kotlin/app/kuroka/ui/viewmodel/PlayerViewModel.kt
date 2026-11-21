@@ -11,6 +11,7 @@ import app.kuroka.api.DownloadState
 import app.kuroka.api.Episode
 import app.kuroka.api.EpisodeBundle
 import app.kuroka.api.EpisodeResolver
+import app.kuroka.api.LibraryEntry
 import app.kuroka.api.ListStatus
 import app.kuroka.api.SkipTimes
 import app.kuroka.api.StreamSource
@@ -290,7 +291,7 @@ class PlayerViewModel(
             subtitles = subtitles,
             skip = watch.skip,
         )
-        if (watch.skip.hasAny) startSkipWatch()
+        // The skip windows go with the state; put() starts the tracking that watches them.
         put(
             url = ordered[wanted].url,
             headers = headersOf(ordered[wanted], watch),
@@ -376,7 +377,7 @@ class PlayerViewModel(
             notice = "Trying ${stream.server.ifBlank { "another server" }}")
         put(
             url = stream.url,
-            headers = headersOf(stream, ui.watch ?: WatchResult(animeId = anime.id)),
+            headers = headersOf(stream, ui.watch ?: WatchResult(animeId = anime.id, episode = episode.number)),
             subtitles = ui.subtitles,
             anime = anime,
             episode = episode,
@@ -395,7 +396,7 @@ class PlayerViewModel(
         val stream = ui.streams[at]
         _ui.value = ui.copy(streamIndex = at, notice = "Playing from $name")
         prefs.rememberServer(name)
-        put(stream.url, headersOf(stream, ui.watch ?: WatchResult(animeId = anime.id)), ui.subtitles, anime, episode, name)
+        put(stream.url, headersOf(stream, ui.watch ?: WatchResult(animeId = anime.id, episode = episode.number)), ui.subtitles, anime, episode, name)
     }
 
     /** A subtitle of the list, or null to turn them off. */
@@ -419,7 +420,7 @@ class PlayerViewModel(
         PlayerHost.load(
             PlaybackItem(
                 uri = stream?.url ?: return,
-                headers = stream?.let { headersOf(it, ui.watch ?: WatchResult(animeId = anime.id)) } ?: emptyMap(),
+                headers = stream?.let { headersOf(it, ui.watch ?: WatchResult(animeId = anime.id, episode = episode.number)) } ?: emptyMap(),
                 subtitles = listOf(track),
                 title = anime.title.display,
                 episode = episode.label(),
@@ -560,7 +561,7 @@ class PlayerViewModel(
             device,
             CastItem(
                 url = stream.url,
-                headers = headersOf(stream, ui.watch ?: WatchResult(animeId = anime.id)),
+                headers = headersOf(stream, ui.watch ?: WatchResult(animeId = anime.id, episode = episode.number)),
                 title = anime.title.display,
                 subtitle = episode.label(),
                 poster = episode.image ?: anime.cover,
@@ -685,12 +686,13 @@ class PlayerViewModel(
         val entry = library.entryOf(anime.id)
         val number = episode.number.toInt()
         if (entry == null) {
+            val total = anime.episodes
             library.setStatus(
                 LibraryEntry(
                     animeId = anime.id, title = anime.title.display, cover = anime.cover,
-                    totalEpisodes = anime.episodes, audio = episode.audio, progress = number,
+                    totalEpisodes = total, audio = episode.audio, progress = number,
                 ),
-                if (complete && anime.episodes != null && number >= anime.episodes) ListStatus.COMPLETED
+                if (complete && total != null && number >= total) ListStatus.COMPLETED
                 else ListStatus.WATCHING,
             )
         } else if (number > entry.progress) {

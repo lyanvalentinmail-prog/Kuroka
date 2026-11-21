@@ -114,15 +114,15 @@ object CastDiscovery {
         val manager = nsd ?: return
         resolving = true
         val gen = generation
-        val timeout = main.postDelayed(
-            {
-                if (gen == generation) {
-                    resolving = false
-                    next()
-                }
-            },
-            RESOLVE_MS,
-        )
+        // postDelayed answers whether it was posted, so the timeout has to be a Runnable of its
+        // own to be taken back off the queue when the resolve answers first.
+        val timeout = Runnable {
+            if (gen == generation) {
+                resolving = false
+                next()
+            }
+        }
+        main.postDelayed(timeout, RESOLVE_MS)
         runCatching {
             manager.resolveService(
                 info,

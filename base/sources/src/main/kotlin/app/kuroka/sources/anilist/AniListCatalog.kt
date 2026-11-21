@@ -119,7 +119,7 @@ class AniListCatalog(
         val v = JSONObject().put("id", id)
         val data = ask(AniListQueries.RELATIONS, v, "relations")
         AniListParse.relations(data.optJSONObject("Media"))
-    }
+    } ?: emptyList()
 
     override suspend fun recommendations(id: Int): List<Anime> =
         Memo.get("anilist:recs:$id", Memo.HOUR) {
@@ -177,7 +177,7 @@ class AniListCatalog(
         // Oldest first: a chain that started in the middle is turned around by its years.
         val ordered = chain.sortedWith(compareBy({ it.year ?: Int.MAX_VALUE }, { it.season.ordinal }))
         Seasons(ordered, id)
-    }
+    } ?: Seasons(emptyList(), id)
 
     override suspend fun genres(): List<String> = Memo.get("anilist:genres", Memo.DAY) {
         val data = ask(AniListQueries.GENRES, JSONObject(), "genres")

@@ -17,8 +17,10 @@ import kotlin.math.min
 
 /** `&#233;`, `&quot;`, `&amp;` and friends, back to the characters they stand for. */
 fun decodeEntities(s: String?): String {
-    if (s.isNullOrEmpty()) return ""
-    var out = s
+    // Not `if (s.isNullOrEmpty()) return ""` with `var out = s`: the local has to be a String of
+    // its own, or every call on it below is a call on a nullable one.
+    val text = s ?: return ""
+    var out = text
     out = DECIMAL.replace(out) { m ->
         val code = m.groupValues[1].toIntOrNull() ?: return@replace m.value
         runCatching { String(Character.toChars(code)) }.getOrDefault(m.value)
@@ -129,7 +131,10 @@ fun titleScore(target: AnimeRef, candidate: String?, candidateJp: String? = null
     }
     // A year in the candidate that is not the anime's own: another release.
     val year = YEAR.find(candidate ?: "")?.groupValues?.getOrNull(1)?.toIntOrNull()
-    if (year != null && target.year != null && abs(year - target.year) > 1) score -= 250
+    // `target.year` is another module's property: it has to be held in a local before it can be
+    // used as the Int it was just found to be.
+    val targetYear = target.year
+    if (year != null && targetYear != null && abs(year - targetYear) > 1) score -= 250
     // The longer the difference in length, the less alike two titles that matched partly are.
     val best = titles.maxOfOrNull { normalize(it).length } ?: 0
     score -= min(abs(cand.length - best), 30) * 2

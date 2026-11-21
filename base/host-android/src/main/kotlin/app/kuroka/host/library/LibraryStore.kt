@@ -196,13 +196,15 @@ class LibraryStore(private val db: KurokaDb) {
 
     /** Replaces the whole list with what the account has (a sign-in, or a pull to refresh). */
     suspend fun replaceAll(remote: List<LibraryEntry>) = withContext(Dispatchers.IO) {
-        db.write { db ->
+        // The transaction's own database, not the wrapper: one write for the whole list.
+        db.write { sqlite ->
             // What the phone changed and has not pushed yet is kept: the sync pushes it after.
             val dirtyIds = _entries.value.filter { it.dirty }.map { it.animeId }.toSet()
             remote.forEach { e ->
                 if (e.animeId in dirtyIds) return@forEach
-                db.insert(
+                sqlite.replace(
                     KurokaDb.TABLE_LIBRARY,
+                    null,
                     values {
                         put("anime_id", e.animeId)
                         put("title", e.title)

@@ -122,7 +122,8 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val onPlayer = controller?.currentDestination?.route == Routes.playerPattern
         if (!onPlayer) return
-        runCatching { enterPictureInPictureMode(pictureInPictureParams ?: PictureInPictureParams.Builder().build()) }
+        // setPictureShape has already put the picture's ratio in the params; this enters with them.
+        runCatching { enterPictureInPictureMode() }
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {

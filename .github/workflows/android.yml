@@ -90,16 +90,28 @@ jobs:
           {
             echo "### The debug build did not finish"
             echo
-            echo "The compiler's own errors:"
+            echo "The compiler's own errors, and the signatures it offers instead:"
             echo
             echo '```'
-            grep -E "^e: " "$LOG" 2>/dev/null | head -60 || true
+            awk '
+              /^e: / { print; n = 3; next }
+              n > 0 && /^[ \t]/ { print; n--; next }
+              n > 0 && /^(fun|val|var|suspend|class|object) / { print; n--; next }
+              { n = 0 }
+            ' "$LOG" 2>/dev/null | head -100 || true
             echo '```'
             echo
-            echo "The tail of the log:"
+            echo "What Gradle said:"
             echo
             echo '```'
-            tail -90 "$LOG" 2>/dev/null || echo "(there is no build log: the step before Gradle failed)"
+            sed -n '/^\* What went wrong:/,/^\* Try:/p' "$LOG" 2>/dev/null | head -40 || true
+            grep -E "^(FAILURE|Caused by:|> Task .* FAILED|Execution failed|A problem occurred|BUILD FAILED)" "$LOG" 2>/dev/null | head -25 || true
+            echo '```'
+            echo
+            echo "The last lines of the log:"
+            echo
+            echo '```'
+            tail -25 "$LOG" 2>/dev/null || echo "(there is no build log: the step before Gradle failed)"
             echo '```'
           } > report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
@@ -192,16 +204,28 @@ jobs:
           {
             echo "### The tests did not finish"
             echo
-            echo "The compiler's own errors:"
+            echo "The compiler's own errors, and the signatures it offers instead:"
             echo
             echo '```'
-            grep -E "^e: " "$LOG" 2>/dev/null | head -60 || true
+            awk '
+              /^e: / { print; n = 3; next }
+              n > 0 && /^[ \t]/ { print; n--; next }
+              n > 0 && /^(fun|val|var|suspend|class|object) / { print; n--; next }
+              { n = 0 }
+            ' "$LOG" 2>/dev/null | head -100 || true
             echo '```'
             echo
-            echo "The tail of the log:"
+            echo "What Gradle said:"
             echo
             echo '```'
-            tail -90 "$LOG" 2>/dev/null || echo "(there is no build log: the step before Gradle failed)"
+            sed -n '/^\* What went wrong:/,/^\* Try:/p' "$LOG" 2>/dev/null | head -40 || true
+            grep -E "^(FAILURE|Caused by:|> Task .* FAILED|Execution failed|A problem occurred|BUILD FAILED)" "$LOG" 2>/dev/null | head -25 || true
+            echo '```'
+            echo
+            echo "The last lines of the log:"
+            echo
+            echo '```'
+            tail -25 "$LOG" 2>/dev/null || echo "(there is no build log: the step before Gradle failed)"
             echo '```'
           } > report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
@@ -292,16 +316,28 @@ jobs:
           {
             echo "### The release build did not finish"
             echo
-            echo "The compiler's own errors:"
+            echo "The compiler's own errors, and the signatures it offers instead:"
             echo
             echo '```'
-            grep -E "^e: " "$LOG" 2>/dev/null | head -60 || true
+            awk '
+              /^e: / { print; n = 3; next }
+              n > 0 && /^[ \t]/ { print; n--; next }
+              n > 0 && /^(fun|val|var|suspend|class|object) / { print; n--; next }
+              { n = 0 }
+            ' "$LOG" 2>/dev/null | head -100 || true
             echo '```'
             echo
-            echo "The tail of the log:"
+            echo "What Gradle said:"
             echo
             echo '```'
-            tail -90 "$LOG" 2>/dev/null || echo "(there is no build log: the step before Gradle failed)"
+            sed -n '/^\* What went wrong:/,/^\* Try:/p' "$LOG" 2>/dev/null | head -40 || true
+            grep -E "^(FAILURE|Caused by:|> Task .* FAILED|Execution failed|A problem occurred|BUILD FAILED)" "$LOG" 2>/dev/null | head -25 || true
+            echo '```'
+            echo
+            echo "The last lines of the log:"
+            echo
+            echo '```'
+            tail -25 "$LOG" 2>/dev/null || echo "(there is no build log: the step before Gradle failed)"
             echo '```'
           } > report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"

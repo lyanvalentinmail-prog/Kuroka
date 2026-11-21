@@ -113,7 +113,9 @@ class HomeViewModel(
                     airing = home.airing,
                     top = home.top,
                 )
-                _error.value = if (home.any()) null else "The catalog answered with nothing"
+                val nothing = home.trending.isEmpty() && home.seasonal.isEmpty() &&
+                    home.popular.isEmpty() && home.airing.isEmpty() && home.top.isEmpty()
+                _error.value = if (nothing) "The catalog answered with nothing" else null
             }.onFailure { why ->
                 _error.value = why.message ?: "The catalog did not answer"
             }

@@ -83,7 +83,7 @@ fun StoragePage(
         SettingRow(
             title = "All of them",
             subtitle = "The whole queue and every file: nothing is left on the phone.",
-            onClick = { items.forEach { Graph.downloads.remove(it) } },
+            onClick = { items.forEach { Graph.downloads.remove(it.id) } },
         )
         SettingNote(
             "The downloads page has each file on its own, with its size, its pause and its share " +

@@ -7,13 +7,14 @@ import android.net.Uri
 import android.view.SurfaceView
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.CueList
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.text.Cue
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -24,8 +25,10 @@ import app.kuroka.api.SubtitleTrack
 import app.kuroka.host.downloads.Downloads
 import app.kuroka.host.downloads.StreamHeaders
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -153,6 +156,9 @@ object PlayerHost {
     @Volatile
     var useEmbeddedStyles: Boolean = true
 
+    /** The words waiting for their offset, so a newer group takes an older one's place. */
+    private var pendingCues: Job? = null
+
     private val _snapshot = MutableStateFlow(PlayerSnapshot())
     /** What the player is doing. Collected by the player screen, the mini player and the service. */
     val snapshot: StateFlow<PlayerSnapshot> get() = _snapshot
@@ -187,7 +193,10 @@ object PlayerHost {
             )
         }
         trackSelector = selector
-        val created = ExoPlayer.Builder(app, DefaultMediaSourceFactory(Downloads.playback(app)), selector)
+        // The builder's second argument is a source factory and its third a renderers factory: a
+        // track selector is a setter of its own.
+        val created = ExoPlayer.Builder(app, DefaultMediaSourceFactory(Downloads.playback(app)))
+            .setTrackSelector(selector)
             .setLoadControl(
                 DefaultLoadControl.Builder()
                     .setBufferDurationsMs(15_000, 120_000, 1_500, 4_000)
@@ -249,29 +258,24 @@ object PlayerHost {
             }
         }
 
-        override fun onCues(cues: CueList) {
-            val out = ArrayList<CueLine>(cues.size)
-            for (i in 0 until cues.size) {
-                val cue = cues.get(i)
+        // Media3 hands over the cues that are on the screen now, as a group stamped with the time
+        // it is due: a cue of its own carries no start and no end any more.
+        override fun onCues(cueGroup: CueGroup) {
+            val due = (cueGroup.presentationTimeUs.takeIf { it != C.TIME_UNSET } ?: 0L) / 1000
+            val out = ArrayList<CueLine>(cueGroup.cues.size)
+            for (cue in cueGroup.cues) {
                 val text = cue.text?.toString()?.trim().orEmpty()
                 if (text.isEmpty()) continue
-                val start = cue.startTimeUs.takeIf { it != C.TIME_UNSET }?.let { it / 1000 } ?: -1L
-                val end = cue.endTimeUs.takeIf { it != C.TIME_UNSET }?.let { it / 1000 } ?: -1L
-                // The offset the settings ask for: + moves the words later.
-                val shiftedStart = if (start >= 0) start - subtitleOffsetMs else start
-                val shiftedEnd = if (end >= 0) end - subtitleOffsetMs else end
-                val now = built?.currentPosition ?: 0L
-                if (shiftedStart >= 0 && now < shiftedStart) continue
-                if (shiftedEnd >= 0 && now > shiftedEnd) continue
                 out += CueLine(
                     text = text,
-                    startMs = shiftedStart,
-                    endMs = shiftedEnd,
-                    textSizePercent = if (useEmbeddedStyles) cue.textSize?.takeIf { it > 0 }?.let { it * 100f } else null,
-                    windowColor = if (useEmbeddedStyles) cue.windowColor?.takeIf { it != 0 } else null,
+                    startMs = due + subtitleOffsetMs,
+                    // The group stays until the next one says otherwise, so it has no end of its own.
+                    endMs = -1L,
+                    textSizePercent = if (useEmbeddedStyles) cue.textSize.takeIf { it > 0 }?.let { it * 100f } else null,
+                    windowColor = if (useEmbeddedStyles && cue.windowColorSet) cue.windowColor else null,
                 )
             }
-            _snapshot.value = _snapshot.value.copy(cues = out)
+            publish(out)
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -325,16 +329,34 @@ object PlayerHost {
         }
     }
 
-    private fun mimeOf(track: SubtitleTrack): String = when (track.format) {
-        SubtitleFormat.VTT -> "text/vtt"
-        SubtitleFormat.SRT -> "application/x-subrip"
-        SubtitleFormat.ASS -> "text/x-ssa"
-        SubtitleFormat.TTML -> "application/ttml+xml"
-        else -> when {
-            track.url.contains(".srt", true) -> "application/x-subrip"
-            track.url.contains(".ass", true) || track.url.contains(".ssa", true) -> "text/x-ssa"
-            else -> "text/vtt"
+    /**
+     * Puts the words on the screen when the offset says they are due. A group is handed over at its
+     * own time, so an offset holds it back for as long as it asks; it cannot pull a line the player
+     * has not read yet, and a group that is already late goes out as it comes.
+     */
+    private fun publish(lines: List<CueLine>) {
+        val wait = subtitleOffsetMs
+        pendingCues?.cancel()
+        if (wait <= 0L) {
+            _snapshot.value = _snapshot.value.copy(cues = lines)
+            return
         }
+        pendingCues = scope.launch {
+            delay(wait)
+            _snapshot.value = _snapshot.value.copy(cues = lines)
+        }
+    }
+
+    private fun mimeOf(track: SubtitleTrack): String = when (track.format) {
+        // A format the provider did not name is guessed from the file name; the rest carry one.
+        SubtitleFormat.UNKNOWN -> when {
+            track.url.contains(".srt", true) -> SubtitleFormat.SRT.mime
+            track.url.contains(".ass", true) || track.url.contains(".ssa", true) -> SubtitleFormat.ASS.mime
+            track.url.contains(".ttml", true) || track.url.contains(".xml", true) -> "application/ttml+xml"
+            else -> SubtitleFormat.VTT.mime
+        }
+
+        else -> track.format.mime
     }
 
     /** The picture the screen draws on. */
@@ -489,7 +511,7 @@ object PlayerHost {
             speed = p.playbackParameters.speed,
             videoWidth = size?.width ?: 0,
             videoHeight = size?.height ?: 0,
-            videoRotation = runCatching { p.videoSize.rotationDegrees }.getOrDefault(0),
+            videoRotation = runCatching { p.videoSize.unappliedRotationDegrees }.getOrDefault(0),
             mediaId = p.currentMediaItem?.mediaId ?: _snapshot.value.mediaId,
             title = metadata?.title?.toString() ?: _snapshot.value.title,
             episode = metadata?.artist?.toString() ?: _snapshot.value.episode,

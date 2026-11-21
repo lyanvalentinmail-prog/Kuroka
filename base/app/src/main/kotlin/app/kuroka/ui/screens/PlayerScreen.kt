@@ -242,6 +242,7 @@ fun PlayerScreen(
                             showButton = player.showSkipButton,
                             onSkipIntro = { model.skipIntro() },
                             onSkipOutro = { model.skipOutro() },
+                            modifier = Modifier.align(Alignment.BottomEnd),
                         )
                         if (snapshot.ended && !inPip) {
                             NextUpCard(
@@ -250,6 +251,7 @@ fun PlayerScreen(
                                 seconds = countdown,
                                 onNext = { model.next() },
                                 onStop = onBack,
+                                modifier = Modifier.align(Alignment.BottomCenter),
                             )
                         }
                     }

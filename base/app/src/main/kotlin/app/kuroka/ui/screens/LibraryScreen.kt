@@ -482,7 +482,7 @@ private fun LibraryRow(
                     text = listOfNotNull(
                         "Episode ${entry.progress}" + (entry.totalEpisodes?.let { " of $it" } ?: ""),
                         entry.audio.name.lowercase().let { if (it == "dub") "Dubbed" else "Subtitled" },
-                        entry.source.takeIf { it.isNotBlank() },
+                        entry.source?.takeIf { it.isNotBlank() },
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
